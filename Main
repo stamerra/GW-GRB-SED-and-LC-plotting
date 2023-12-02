@@ -1,0 +1,232 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# ## Read GRB template and plot spectrum and lightcurve
+
+from astropy.io import fits
+# ToDo: Loop on files?
+NSimFile = 1629
+Print = 'Y'
+#Print = 'N'
+#
+NameDir = '/Users/antonio/Desktop/GRB-GW_TeV_catO5/'
+fits_file = NameDir+"catO5_"+str(NSimFile)+".fits"
+WorkDir = '/Users/antonio/Work/AnalisiProjects/GW-CTA/Plots_GWGRB_Catalogue/'
+hdul = fits.open(fits_file)
+hdul.info()
+
+hdul[0].header
+
+
+# ### Read data and fill arrays
+
+Header = hdul[0].header
+Energy = hdul[1].data 
+Timeb = hdul[2].data 
+Spectrum = hdul[3].data
+#print(Timeb)
+#hdul.close()
+#---
+Eiso = Header['EISO']
+Distance = Header['DISTANCE']
+Angle = Header['ANGLE']
+INFO = 'Eiso:'+str(Eiso)+" Dist:"+str(Distance)+" Angle:"+str(Angle)
+#estimation of maximum flux
+max([max(Spectrum.field(6)),max(Spectrum.field(10)),max(Spectrum.field(20)),max(Spectrum.field(30)),max(Spectrum.field(40))])
+#                  
+
+
+# ## Fill arrays with spectra and lightcurves
+
+import math
+import numpy as np
+#
+TimeBinStart = Timeb.field(0) #extract array of start time in two-field
+#
+E = Energy.field(0) #extract array of energies  [GeV]
+LogEne = np.log10(Energy.field(0))
+#Extract Flux and SED at different times from T0, 10-60-180-600-1800s
+Flux10s = Spectrum[21]  #ph/cm2/s/GeV. Flux
+Flux60s = Spectrum[28]
+Flux180s = Spectrum[33]
+Flux600s = Spectrum[38]
+Flux1800s = Spectrum[43]
+Flux18000s = Spectrum[53]
+#
+np.seterr(divide = 'ignore') # to avoid warning to restore: numpy.seterr(divide = 'warn') 
+# Log value
+LF10 = np.log10(Flux10s)  #ph/cm2/s/GeV LogFlux
+LF60 = np.log10(Flux60s)
+LF180 = np.log10(Flux180s)
+LF600 = np.log10(Flux600s)
+LF1800 = np.log10(Flux1800s)
+LF18000 = np.log10(Flux18000s)
+# 
+# SED values - multiply for 2*energy and convert in erg
+#-conversion in erg
+GeV2erg = 0.00160218
+LGeV2erg = np.log10(0.00160218)
+#
+SED10s = LF10 + 2*LogEne + LGeV2erg
+SED60s = LF60 + 2*LogEne + LGeV2erg
+SED180s = LF180 + 2*LogEne + LGeV2erg
+SED600s = LF600 + 2*LogEne + LGeV2erg
+SED1800s = LF1800 + 2*LogEne + LGeV2erg
+SED18000s = LF18000 + 2*LogEne + LGeV2erg
+# Sensitivity values for CTA South Alpha configuration 30 min 
+# Extracted from CTASouth_DifferentObservationTime.png
+Esens = np.array([1.8,2.0,2.4,2.8,3.0,3.2,3.4,3.8]) #GeV (Log)
+SEDsens = np.array([-10.67,-11.02,-11.34,-11.54,-11.6,-11.59,-11.55,-11.32]) #erg/cm2/s (Log) 
+Fluxsens = SEDsens - 2*Esens - LGeV2erg # ph/cm2/s/GeV
+#Reference spectrum from GRBSENS  Flux = Norm * (E/GeV)^-slope
+# SED requires conversion in erg
+slope = 2.1
+Norm = 1e-7 #ph/cm2/s/GeV
+Fref = Norm * pow(E,-slope)  #E in GeV
+LogFref = np.log10(Fref) # in ph/cm2/s/GeV
+SEDFref = 2*LogEne + LogFref + LGeV2erg  # erg/cm2/s
+#
+# --- DEBUG
+#print(SED10s)
+##
+#print(LF10)
+#print(SEDsens)
+#print(Flux10s)
+#print(Fluxsens)
+#
+
+
+# ### Plot Lightcurve and Spectrum
+
+import matplotlib.pyplot as plt
+fig = plt.figure()
+ax = fig.add_subplot(1,1,1)
+ax.text(0.02,0.02,"catO5_"+str(NSimFile)+".fits  "+INFO,transform=ax.transAxes)
+#ax.text(0.3,0.02,INFO,transform=ax.transAxes)
+#
+#Plot SED:  E**2 * Flux  
+plt.plot(LogEne,SED10s, LogEne,SED60s, LogEne,SED180s, LogEne,SED600s, LogEne,SED1800s, LogEne,SED18000s)
+plt.xlabel('log Energy [GeV]')
+# Plot a reference curve
+plt.plot(LogEne,SEDFref,"--")
+#plot sensitivity area
+plt.plot(Esens,SEDsens,".")
+#
+plt.xlim([0,4])
+plt.ylim([-16,-8])
+#plt.ylabel('log Flux [ph/cm2/s/GeV]')
+plt.ylabel('log Flux [erg/cm2/s]')
+plt.title("SED")
+plt.legend(['10 seconds','60s','180s','600s','1800s','18000s','slope -2.1','Sens-30min'],loc='upper left')
+#
+
+#z = [[z] * 41 for z in range(41)]
+#plt.contourf(LogEne,LF180,z, 300)
+#plt.fill_between(LogEne,LF1800,color='r')
+plt.show
+if Print=='Y': plt.savefig(WorkDir+"SED_ID"+str(NSimFile)+".png")
+
+
+# In[6]:
+
+
+#Plot Flux
+fig = plt.figure()
+ax = fig.add_subplot(1,1,1)
+#ax.text(0.02,0.02,"catO5_"+str(NSimFile)+".fits  "+INFO,transform=ax.transAxes)
+ax.text(0.3,0.02,INFO,transform=ax.transAxes)
+plt.plot(LogEne,LF10, LogEne,LF60, LogEne,LF180, LogEne,LF600, LogEne,LF1800, LogEne,LF18000)
+# A reference spectrum used in GRBSens
+plt.plot(LogEne,LogFref,"--")
+plt.xlim([0,4])
+plt.ylim([-20,-8])
+#
+plt.plot(Esens,Fluxsens,".")
+
+plt.legend(['10 seconds','60s','180s','600s','1800s','18000s',"slope -2.1","sens 30min"],loc='upper left')
+plt.xlabel('log Energy [GeV]')
+#plt.ylabel('log Flux [ph/cm2/s/GeV]')
+plt.ylabel('log Flux [ph/cm2/s/GeV]')
+plt.title("Flux")
+plt.grid()
+plt.show
+if Print=='Y': plt.savefig(WorkDir+"Flux_ID"+str(NSimFile)+".png")
+
+
+# In[7]:
+
+
+fig = plt.figure()
+ax = fig.add_subplot(1,1,1)
+#ax.text(0.02,0.02,"catO5_"+str(NSimFile)+".fits  "+INFO,transform=ax.transAxes)
+ax.text(0.3,0.02,INFO,transform=ax.transAxes)
+#Plot lightcurve at different energies
+t = np.log10(TimeBinStart)
+#temporal arrays extracted at the bin for energy 20-100-300GeV and 1TeV
+LC20GeV = np.log10(Spectrum.field(14))
+LC100GeV = np.log10(Spectrum.field(21))
+LC300GeV = np.log10(Spectrum.field(26))
+LC1TeV = np.log10(Spectrum.field(31))
+#
+plt.plot(t,LC20GeV,t, LC100GeV,t, LC300GeV, t, LC1TeV) 
+
+# Sensitivities goes ~like 1/sqrt(Time)
+#plt.plot(t,-7.5-0.5*t,"--")
+# CTA performance for Alpha configuration North - extracted from: CTA-Performance-ShortTerm-prod5-v0.1-North.png
+lt = np.array([1,2,3,4,4.5]) # log Time [sec]
+lsenserg100GeV = np.array([-9.44,-10.2,-10.8,-11.4,-11.65]) #from CTA performance @100 GeV [erg/cm2/s]
+lsensFlux100GeV = lsenserg100GeV - LGeV2erg - 2*np.log10(100) # ph/cm2/s/GeV @100 GeV
+
+lsenserg25GeV = np.array([-9.08,-9.65,-10.2,-10.5,-10.6]) #from CTA performance @25 GeV [erg/cm2/s]
+lsensFlux25GeV = lsenserg25GeV - LGeV2erg - 2*np.log10(100) # ph/cm2/s/GeV @20 GeV
+
+lsenserg250GeV = np.array([-9.58,-10.4,-11.1,-11.7,-11.9]) #from CTA performance @250 GeV [erg/cm2/s]
+lsensFlux250GeV = lsenserg250GeV - LGeV2erg - 2*np.log10(100) # ph/cm2/s/GeV @250 GeV
+SEDJarred = np.array([-10.76,-11.38,-11.9,-12.58])
+lFluxJarred = SEDJarred - LGeV2erg - 2*np.log10(40) # ph/cm2/s/GeV @threahold CHECK GeV
+plt.plot(lt,lsensFlux100GeV,"--")
+plt.plot(lt,lsensFlux25GeV,"--")
+plt.plot(lt,lsensFlux250GeV,"--")
+#plt.plot(lt,lFluxJarred,"--")
+#
+plt.legend(['20 GeV','100 GeV','300 GeV','1 TeV','sensit.25\n100-250GeV'],loc='upper right')
+#
+if np.min(lsensFlux25GeV-np.interp(lt,t,LC20GeV))<0: 
+    plt.text(0.,-18.,'DETECTABLE!')
+#
+plt.xlabel('log Time T-T0 [s]')
+plt.ylabel('log Flux [ph/cm2/s/GeV]')
+plt.title("Lightcurve")
+plt.xlim([-1,6])
+plt.ylim([-23,-5])
+plt.grid()
+plt.show
+if Print=='Y': plt.savefig(WorkDir+"LC_ID"+str(NSimFile)+".png")
+#
+
+# ### Check if SED is above sensitivity; rough significance
+
+
+SEDsens[4] # log sensitivity @1TeV
+
+LogDiff= np.min(lsensFlux25GeV-np.interp(lt,t,LC20GeV))
+MinDist = np.min(abs(lsensFlux25GeV-np.interp(lt,t,LC20GeV)))
+if LogDiff<0: 
+    print('DETECTABLE!  ',LogDiff, " orders over sensitivity. Min Dist:", MinDist)
+else: print('NOT-DETECTABLE...',LogDiff, " below. Min Dist:",MinDist)
+#
+# Compute approx sensitivity at different times (exposure is assumed the same)
+TimeVal = np.array([10,60,180,600,1800,18000])
+lTval = np.log10(TimeVal)
+#
+FluxDiff25GeV = np.interp(lTval, lt,lsensFlux25GeV)-np.interp(lTval,t,LC20GeV)
+FluxDiff100GeV = np.interp(lTval, lt,lsensFlux100GeV)-np.interp(lTval,t,LC100GeV)
+print(FluxDiff25GeV)
+sigma0 = 6 #significance od detection with flux at the sensitivity level
+estSign25GeV = sigma0*np.power(10,-FluxDiff25GeV)
+estSign100GeV = sigma0*np.power(10,-FluxDiff100GeV)
+#
+print("ID:",NSimFile)
+for i in range(len(lTval)):
+    print("Time: {np.power(10,lTval[i]):.0f} s  Estim.signif. 25GeV: {estSign25GeV[i]:.1f}  100 GeV: {estSign100GeV[i]:.1f}")
+#
